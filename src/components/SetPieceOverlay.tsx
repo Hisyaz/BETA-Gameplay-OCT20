@@ -19,6 +19,7 @@ export const SetPieceOverlay: React.FC<SetPieceOverlayProps> = ({
   const isPenalty = sp?.type === 'penalty';
   const isFreeKick = sp?.type === 'free_kick';
   const isCorner = sp?.type === 'corner_kick';
+  const isThrow = sp?.type === 'throw_in';
 
   // State refreshed on animation tick
   const [, setTick] = useState(0);
@@ -107,6 +108,8 @@ export const SetPieceOverlay: React.FC<SetPieceOverlayProps> = ({
                 ? 'PENALTY KICK DUEL'
                 : isCorner
                 ? 'CORNER KICK'
+                : isThrow
+                ? 'TOUCHLINE THROW-IN'
                 : isFreeKick
                 ? 'DIRECT FREE KICK'
                 : 'SET PIECE AIMING'}
@@ -123,7 +126,7 @@ export const SetPieceOverlay: React.FC<SetPieceOverlayProps> = ({
             </div>
           ) : (
             <div className="text-[10px] text-slate-300">
-              AIM: [←/→] • HOLD KEY OR BUTTON TO CHARGE POWER
+              {isThrow ? 'AIM: [ARROWS] • S: SHORT THROW • W: LONG THROW' : 'AIM: [←/→] • HOLD KEY OR BUTTON TO CHARGE POWER'}
             </div>
           )}
 
@@ -143,16 +146,39 @@ export const SetPieceOverlay: React.FC<SetPieceOverlayProps> = ({
           <div className="flex items-center justify-between text-[10px] px-1">
             <span className="font-bold text-amber-400 flex items-center gap-1">
               <Zap className="w-3 h-3 text-amber-400" />
-              {isPenalty ? 'PENALTY KICK' : isCorner ? 'CORNER KICK' : 'DIRECT FREE KICK'}
+              {isPenalty ? 'PENALTY KICK' : isCorner ? 'CORNER KICK' : isThrow ? 'TOUCHLINE THROW-IN' : 'DIRECT FREE KICK'}
             </span>
             <span className="text-[9px] text-slate-400">
-              AIM: [←/→]
+              {isThrow ? 'AIM: [ARROWS]' : 'AIM: [←/→]'}
             </span>
           </div>
 
           {/* Action execution buttons */}
           <div className="grid grid-cols-4 gap-1.5">
-            {isPenalty ? (
+            {isThrow ? (
+              <>
+                <button
+                  onMouseDown={() => triggerTouchPress('pass', false)}
+                  onMouseUp={() => triggerTouchRelease('pass')}
+                  onTouchStart={() => triggerTouchPress('pass', false)}
+                  onTouchEnd={() => triggerTouchRelease('pass')}
+                  className="col-span-2 py-2 px-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg border border-emerald-400 cursor-pointer"
+                >
+                  <Zap className="w-3.5 h-3.5 text-white" />
+                  [S] SHORT THROW (SECURE)
+                </button>
+                <button
+                  onMouseDown={() => triggerTouchPress('long_pass', false)}
+                  onMouseUp={() => triggerTouchRelease('long_pass')}
+                  onTouchStart={() => triggerTouchPress('long_pass', false)}
+                  onTouchEnd={() => triggerTouchRelease('long_pass')}
+                  className="col-span-2 py-2 px-3 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white rounded font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg border border-purple-400 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-purple-200" />
+                  [W] LONG THROW
+                </button>
+              </>
+            ) : isPenalty ? (
               <>
                 <button
                   onMouseDown={() => triggerTouchPress('shoot', false)}

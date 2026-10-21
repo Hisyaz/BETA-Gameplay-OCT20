@@ -40,7 +40,7 @@ import {
   calculateSecondBallReactionDelay,
 } from '../playerStats';
 import { animationEngine } from '../animationEngine';
-import { Player, Ball } from '../../types';
+import { Player, Ball, PlayerRole, CanonicalOutfieldStats } from '../../types';
 import { PITCH_CONFIG } from '../constants';
 
 let passedTests = 0;
@@ -63,15 +63,37 @@ function createMockPlayer(stats: {
   pos?: number;
   int?: number;
   str?: number;
-  role?: string;
+  role?: PlayerRole;
   primaryPos?: 'GK' | 'DEF' | 'MID' | 'ATT';
 }): Player {
+  const canonical: CanonicalOutfieldStats = {
+    pac: 80,
+    sta: 80,
+    str: stats.str ?? 75,
+    bcl: 75,
+    ret: 75,
+    dri: 75,
+    spa: 75,
+    lpa: 70,
+    cro: 70,
+    sho: stats.sho ?? 75,
+    hea: stats.hea ?? 75,
+    lsh: 70,
+    tck: 60,
+    sld: 60,
+    int: stats.int ?? 70,
+    mrk: 65,
+    pos: stats.pos ?? 75,
+    cmp: 75,
+    rea: stats.rea ?? 75,
+  };
+
   return {
     id: `mock_player_${Math.random()}`,
     name: 'Mock Player',
     number: 9,
     team: 'home',
-    role: stats.role || 'ST1',
+    role: stats.role || ('ST1' as PlayerRole),
     primaryPos: stats.primaryPos || 'ATT',
     x: 500,
     y: 500,
@@ -91,44 +113,27 @@ function createMockPlayer(stats: {
       tackling: 3.5,
       heading: 4.0,
     },
-    canonicalStats: {
-      pac: 80,
-      sho: stats.sho ?? 75,
-      pas: 75,
-      dri: 75,
-      def: 60,
-      phy: 75,
-      spd: 80,
-      acc: 80,
-      pow: 75,
-      fin: 75,
-      lon: 70,
-      vis: 75,
-      cro: 70,
-      cur: 70,
-      bcl: 75,
-      agi: 75,
-      bal: 75,
-      tac: 60,
-      int: stats.int ?? 70,
-      pos: stats.pos ?? 75,
-      hea: stats.hea ?? 75,
-      str: stats.str ?? 75,
-      sta: 80,
-      agg: 70,
-      com: 75,
-      cmp: 75,
-      rea: stats.rea ?? 75,
-      gkDiv: 50,
-      gkHan: 50,
-      gkKic: 50,
-      gkPos: 50,
-      gkRef: 50,
-      han: 50,
-      sav: 50,
+    canonicalStats: canonical,
+    appearance: {
+      heightCm: 180,
+      weightKg: 75,
+      muscleMass: 3,
+      skinTone: '#f1c27d',
+      hairStyle: 'buzzcut',
+      hairColor: '#000',
     },
     action: 'idle',
     actionTimer: 0,
+    stamina: 100,
+    hasYellowCard: false,
+    isRedCarded: false,
+    animFrame: 0,
+    animTimer: 0,
+    isUserControlled: true,
+    slideVelocityX: 0,
+    slideVelocityY: 0,
+    diveX: 0,
+    diveY: 0,
   };
 }
 

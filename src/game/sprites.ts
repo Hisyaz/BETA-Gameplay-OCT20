@@ -109,40 +109,6 @@ export function drawPlayerSprite(
     sh
   );
 
-  // Visible Q Ball Shielding Visual Aura, Barrier Arc & Indicator
-  // "make the Q ball shielding more visible"
-  if (player.isShielding) {
-    ctx.save();
-    const time = Date.now() * 0.007;
-    const pulse = Math.sin(time) * 2;
-    // Shield arc angle centered behind the player (protecting against pressing rivals)
-    const backAngle = player.facingAngle + Math.PI;
-
-    // Ground protection perimeter ring
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.ellipse(player.x, player.y + 2, 16 + pulse, 10 + pulse * 0.5, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Protective glowing barrier arc barricading incoming pressure
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = '#0284c7';
-    ctx.shadowBlur = 8;
-    ctx.beginPath();
-    ctx.arc(player.x, player.y - 8, 18 + pulse, backAngle - 1.15, backAngle + 1.15);
-    ctx.stroke();
-
-    // Shield badge above head
-    ctx.shadowBlur = 0;
-    ctx.font = '7px "Press Start 2P", monospace';
-    ctx.fillStyle = '#38bdf8';
-    ctx.textAlign = 'center';
-    ctx.fillText('🛡 SHIELD', player.x, player.y - sh - 14);
-
-    ctx.restore();
-  }
 
   // Subtle confused emoji above defender when nutmegged or beaten by roulette
   if (player.confusedTimer && player.confusedTimer > 0) {

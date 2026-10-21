@@ -2057,6 +2057,19 @@ export class MatchEngine {
     // Strict single controlled player synchronization
     this.updateUserControlledFlag();
 
+    // Universal invariant: if a player does not have the ball, they CANNOT use the shield under any circumstances
+    for (let i = 0; i < this.players.length; i++) {
+      const p = this.players[i];
+      if (this.ball.ownerId !== p.id) {
+        if (p.isShielding) {
+          p.isShielding = false;
+        }
+        if (p.action === 'shielding') {
+          p.action = 'idle';
+        }
+      }
+    }
+
     const timeScale = this.getTimeScale();
 
     // Kickoff resolution: transition to in_play once the ball has actually been passed, kicked, or dribbled out of center circle!
@@ -2140,8 +2153,11 @@ export class MatchEngine {
     }
 
     if (this.bannerTimer > 0) {
-      this.bannerTimer = Math.max(0, this.bannerTimer - timeScale);
-      if (this.bannerTimer === 0) this.bannerMessage = null;
+      // Do not count down or expire set-piece prompt while user is actively aiming a set piece
+      if (!this.setPiece) {
+        this.bannerTimer = Math.max(0, this.bannerTimer - timeScale);
+        if (this.bannerTimer === 0) this.bannerMessage = null;
+      }
     }
 
     if (this.powerBar.fadeAlpha && this.powerBar.fadeAlpha > 0 && !this.powerBar.isActive) {
@@ -3500,7 +3516,7 @@ export class MatchEngine {
     const dDefToBall = Math.hypot(this.ball.x - defender.x, this.ball.y - defender.y);
     const dDefToCarrier = Math.hypot(carrier.x - defender.x, carrier.y - defender.y);
 
-    if (carrier.isShielding) {
+    if (carrier.isShielding && this.ball.ownerId === carrier.id) {
       // When shielding [Q], the carrier actively positions their back between defender and ball
       return dDefToCarrier < dDefToBall + 8;
     }
@@ -3623,7 +3639,7 @@ export class MatchEngine {
         // Clean cut chance is low from behind; requires angled entry & timing
         const cleanCutChance = isDirectBehind ? (baseClean * 0.18) : (isBodyBlocking ? (baseClean * 0.30) : (baseClean * 0.50));
 
-        if (Math.random() < cleanCutChance && !victim.isShielding) {
+        if (Math.random() < cleanCutChance && !(victim.isShielding && this.ball.ownerId === victim.id)) {
           // Perfectly timed slide hook around side! Cuts ball in front
           this.ball.ownerId = null;
           this.ball.isDividedBall = true;
@@ -3703,7 +3719,7 @@ export class MatchEngine {
         const isDirectBehind = Math.abs(relAngle) > 2.5;
         const behindCleanChance = isDirectBehind ? (cleanChance * 0.24) : (isBodyBlocking ? (cleanChance * 0.38) : (cleanChance * 0.62));
 
-        if (Math.random() < behindCleanChance && !victim.isShielding) {
+        if (Math.random() < behindCleanChance && !(victim.isShielding && this.ball.ownerId === victim.id)) {
           // Successfully places leg in front from side and pokes the ball
           this.executeBallTapAway(tackler, victim);
           this.setBanner(`POKED FREE FROM BEHIND!`, 65);
@@ -4326,6 +4342,7 @@ export class MatchEngine {
       );
 
       if (decision) {
+        p.isShielding = false;
         if (this.matchPhase === 'kickoff_ready') {
           this.matchPhase = 'in_play';
         }
@@ -5628,6 +5645,9 @@ export class MatchEngine {
             p.actionTimer = 16;
             p.animFrame = 0;
           } else {
+            if (p.action === 'shielding') {
+              p.isShielding = false;
+            }
             p.action = 'idle';
             p.animFrame = 0;
           }

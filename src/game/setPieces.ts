@@ -138,7 +138,7 @@ export function setupPenalty(engine: MatchEngine, attackingTeam: TeamSide): void
   if (attackingTeam === 'home') {
     engine.userControlledPlayerId = taker.id;
     engine.updateUserControlledFlag();
-    engine.bannerMessage = t('penaltyShootOnly');
+    engine.bannerMessage = '⚡ PENALTY KICK • AIM: ←/→ • HOLD A: SHOOT • E+A: PANENKA';
   } else {
     if (gk) {
       engine.userControlledPlayerId = gk.id;
@@ -146,7 +146,7 @@ export function setupPenalty(engine: MatchEngine, attackingTeam: TeamSide): void
     }
     engine.bannerMessage = `PENALTY FOR ${AWAY_KIT.name.toUpperCase()}! DIVE WITH GOALKEEPER!`;
   }
-  engine.bannerTimer = 180;
+  engine.bannerTimer = 999999;
 }
 
 /**
@@ -366,11 +366,11 @@ export function setupFreeKick(engine: MatchEngine, attackingTeam: TeamSide, foul
   };
 
   if (attackingTeam === 'home') {
-    engine.bannerMessage = t('freekickAwarded');
+    engine.bannerMessage = '⚽ DIRECT FREE KICK • AIM: ←/→ • A: SHOOT • D: CROSS • S: PASS';
   } else {
     engine.bannerMessage = `FREE KICK FOR ${AWAY_KIT.name.toUpperCase()}! DEFEND THE WALL!`;
   }
-  engine.bannerTimer = 160;
+  engine.bannerTimer = 999999;
 }
 
 /**
@@ -420,8 +420,8 @@ export function setupCornerKick(engine: MatchEngine, attackingTeam: TeamSide, co
     isPenalty: false,
   };
 
-  engine.bannerMessage = t('cornerPrompt');
-  engine.bannerTimer = 160;
+  engine.bannerMessage = '🚩 CORNER KICK • AIM: ←/→ • D: CROSS • S: PASS • A: SHOOT';
+  engine.bannerTimer = 999999;
 }
 
 /**
@@ -466,8 +466,8 @@ export function setupGoalKick(engine: MatchEngine, defendingTeam: TeamSide): voi
     isPenalty: false,
   };
 
-  engine.bannerMessage = t('setPieceAimPrompt');
-  engine.bannerTimer = 160;
+  engine.bannerMessage = '🥅 GOAL KICK • AIM: ←/→ • S: SHORT PASS • W: LONG PUNT';
+  engine.bannerTimer = 999999;
 }
 
 /**
@@ -546,8 +546,25 @@ export function setupThrowIn(engine: MatchEngine, team: TeamSide, touchX: number
     isPenalty: false,
   };
 
-  engine.bannerMessage = t('throwInPrompt');
-  engine.bannerTimer = 160;
+  engine.bannerMessage = '✋ TOUCHLINE THROW-IN • AIM: ARROWS • S: SECURE SHORT PASS • W: LONG THROW';
+  engine.bannerTimer = 999999;
+}
+
+/**
+ * Returns clean, non-obstructive set-piece instructions for the bottom-left event box
+ */
+export function getSetPiecePrompt(sp: SetPieceState): string {
+  if (sp.type === 'penalty') {
+    return '⚡ PENALTY KICK • AIM: ←/→ • HOLD A: SHOOT • E+A: PANENKA';
+  } else if (sp.type === 'throw_in') {
+    return '✋ TOUCHLINE THROW-IN • AIM: ARROWS • S: SECURE SHORT PASS • W: LONG THROW';
+  } else if (sp.type === 'corner_kick') {
+    return '🚩 CORNER KICK • AIM: ←/→ • D: CROSS • S: PASS • A: SHOOT';
+  } else if (sp.type === 'goal_kick') {
+    return '🥅 GOAL KICK • AIM: ←/→ • S: SHORT PASS • W: LONG PUNT';
+  } else {
+    return '⚽ DIRECT FREE KICK • AIM: ←/→ • A: SHOOT • D: CROSS • S: PASS';
+  }
 }
 
 /**
@@ -582,6 +599,12 @@ export function updateSetPiece(engine: MatchEngine, keys: KeyState): void {
   }
 
   if (sp.team === 'home') {
+    // Keep set-piece instruction visible in the bottom-left text box (nutmegs, fouls box) without covering the pitch
+    if (!engine.bannerMessage || engine.bannerTimer < 10) {
+      engine.bannerMessage = getSetPiecePrompt(sp);
+      engine.bannerTimer = 999999;
+    }
+
     // Goalkeeper anticipation psychology during penalty: shifts weight across line
     if (sp.isPenalty) {
       engine.phaseTimer++;
@@ -685,16 +708,44 @@ export function handleSetPieceInput(engine: MatchEngine, keys: KeyState): void {
   const taker = engine.players.find(p => p.id === sp.takerId);
   if (!taker) return;
 
-  // Horizontal Aiming with ArrowLeft / ArrowRight
-  if (keys.ArrowLeft) sp.aimAngle -= 0.038;
-  if (keys.ArrowRight) sp.aimAngle += 0.038;
+  if (sp.type === 'throw_in') {
+    // 2D directional aiming on throw-ins: point arrows towards target teammate or space
+    const isLeftSide = sp.spotX < PITCH_CONFIG.CENTER_X;
+    let dx = 0;
+    let dy = 0;
+    if (keys.ArrowLeft) dx -= 1;
+    if (keys.ArrowRight) dx += 1;
+    if (keys.ArrowUp) dy -= 1;
+    if (keys.ArrowDown) dy += 1;
 
-  // Elevation control with ArrowUp / ArrowDown
-  if (keys.ArrowUp) {
-    sp.elevation = Math.min(0.85, (sp.elevation || 0) + 0.025);
-  }
-  if (keys.ArrowDown) {
-    sp.elevation = Math.max(-0.75, (sp.elevation || 0) - 0.025);
+    if (dx !== 0 || dy !== 0) {
+      let desiredAngle = Math.atan2(dy, dx);
+      // Ensure desiredAngle aims inward onto the pitch
+      if (isLeftSide) {
+        // Left touchline: pitch is to the right (+x)
+        if (Math.cos(desiredAngle) < 0.1) {
+          desiredAngle = dy < 0 ? -Math.PI * 0.42 : Math.PI * 0.42;
+        }
+      } else {
+        // Right touchline: pitch is to the left (-x)
+        if (Math.cos(desiredAngle) > -0.1) {
+          desiredAngle = dy < 0 ? -Math.PI * 0.58 : Math.PI * 0.58;
+        }
+      }
+      sp.aimAngle = desiredAngle;
+    }
+  } else {
+    // Horizontal Aiming with ArrowLeft / ArrowRight
+    if (keys.ArrowLeft) sp.aimAngle -= 0.038;
+    if (keys.ArrowRight) sp.aimAngle += 0.038;
+
+    // Elevation control with ArrowUp / ArrowDown
+    if (keys.ArrowUp) {
+      sp.elevation = Math.min(0.85, (sp.elevation || 0) + 0.025);
+    }
+    if (keys.ArrowDown) {
+      sp.elevation = Math.max(-0.75, (sp.elevation || 0) - 0.025);
+    }
   }
 
   // Curve / Swerve control with Q and E
@@ -974,31 +1025,154 @@ export function executeSetPieceDelivery(
   engine.ball.lastKickPower = mult;
 
   if (isThrow) {
-    // FIFA two-handed throw-in release: starts from overhead at z=18
-    const throwSpeed = action === 'long_pass' ? 14.0 + mult * 5.0 : 10.5 + mult * 4.0;
-    // Release ball directly onto pitch so it is safely inside playable boundaries
     const isLeftSide = (sp?.spotX || 0) < PITCH_CONFIG.CENTER_X;
     const releaseX = isLeftSide
       ? Math.max(PITCH_CONFIG.PITCH_LEFT + 8, (sp ? sp.spotX : taker.x) + 8)
       : Math.min(PITCH_CONFIG.PITCH_RIGHT - 8, (sp ? sp.spotX : taker.x) - 8);
     const releaseY = sp ? Math.max(PITCH_CONFIG.PITCH_TOP + 30, Math.min(PITCH_CONFIG.PITCH_BOTTOM - 30, sp.spotY + Math.sin(aimAngle) * 6)) : taker.y;
 
-    // Ensure throw direction has inward velocity component so it travels into the field
-    let throwVx = Math.cos(aimAngle) * throwSpeed;
-    if (isLeftSide && throwVx < 1.5) throwVx = Math.max(2.5, Math.abs(throwVx));
-    if (!isLeftSide && throwVx > -1.5) throwVx = -Math.max(2.5, Math.abs(throwVx));
+    const mates = engine.players.filter(p => p.team === taker.team && p.id !== taker.id && !p.isRedCarded);
 
-    engine.ball.x = releaseX;
-    engine.ball.y = releaseY;
-    engine.ball.prevX = releaseX;
-    engine.ball.prevY = releaseY;
-    engine.ball.prevZ = 18;
-    engine.ball.z = 18;
-    engine.ball.vx = throwVx;
-    engine.ball.vy = Math.sin(aimAngle) * throwSpeed;
-    engine.ball.vz = (action === 'long_pass' ? 2.6 : 0.8) * mult;
-    engine.ball.isAirborne = true;
-    audio.playKick(0.65);
+    if (action === 'long_pass') {
+      // Long Throw-In: Powerful driven throw down the line or deep into open space
+      let longTarget: Player | null = null;
+      let bestLongScore = -Infinity;
+      for (const m of mates) {
+        const dx = m.x - taker.x;
+        const dy = m.y - taker.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 35) continue;
+        const mAngle = Math.atan2(dy, dx);
+        let angleDiff = Math.abs(mAngle - aimAngle);
+        while (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+        if (angleDiff < 1.1) {
+          const score = 500 - angleDiff * 200 + dist * 0.35;
+          if (score > bestLongScore) {
+            bestLongScore = score;
+            longTarget = m;
+          }
+        }
+      }
+
+      let throwSpeed: number;
+      let throwAngle: number;
+      if (longTarget) {
+        const toDx = longTarget.x - releaseX;
+        const toDy = longTarget.y - releaseY;
+        const dist = Math.hypot(toDx, toDy);
+        throwAngle = Math.atan2(toDy, toDx);
+        throwSpeed = Math.max(7.5, Math.min(13.5, dist / 16.0 + 2.0));
+      } else {
+        throwAngle = aimAngle;
+        throwSpeed = 11.0 + mult * 3.5;
+      }
+
+      engine.ball.x = releaseX;
+      engine.ball.y = releaseY;
+      engine.ball.prevX = releaseX;
+      engine.ball.prevY = releaseY;
+      engine.ball.prevZ = 16;
+      engine.ball.z = 16;
+      engine.ball.vx = Math.cos(throwAngle) * throwSpeed;
+      engine.ball.vy = Math.sin(throwAngle) * throwSpeed;
+      engine.ball.vz = 2.0;
+      engine.ball.isAirborne = true;
+      audio.playKick(0.70);
+      engine.setBanner('🚀 LONG THROW-IN DOWNFIELD!', 85);
+
+      const receiver = longTarget || mates.find(m => Math.hypot(m.x - (releaseX + Math.cos(throwAngle) * 120), m.y - (releaseY + Math.sin(throwAngle) * 120)) < 70);
+      if (receiver) {
+        receiver.action = 'running';
+        receiver.facingAngle = Math.atan2(releaseY - receiver.y, releaseX - receiver.x);
+        if (taker.team === 'home') {
+          engine.userControlledPlayerId = receiver.id;
+          engine.updateUserControlledFlag();
+        }
+      }
+      engine.setPieceDeliveryGraceTimer = 30;
+    } else {
+      // Short pass on throw in: SECURE PASS TO CLOSEST TEAMMATE IN AIM DIRECTION
+      interface Candidate {
+        player: Player;
+        dist: number;
+        angleDiff: number;
+      }
+      const candidates: Candidate[] = [];
+      for (const m of mates) {
+        const dx = m.x - taker.x;
+        const dy = m.y - taker.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 8) continue;
+        const mAngle = Math.atan2(dy, dx);
+        let angleDiff = Math.abs(mAngle - aimAngle);
+        while (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+        candidates.push({ player: m, dist, angleDiff });
+      }
+
+      // Filter to teammates within forward aiming cone (~85 degrees)
+      let inCone = candidates.filter(c => c.angleDiff < 1.48);
+      if (inCone.length === 0) {
+        inCone = candidates.filter(c => c.angleDiff < 2.2);
+      }
+      if (inCone.length === 0) {
+        inCone = candidates;
+      }
+
+      // Sort by distance ascending: "closest teammate on the direction you aim"
+      inCone.sort((a, b) => a.dist - b.dist);
+      const targetMate = inCone.length > 0 ? inCone[0].player : null;
+
+      if (targetMate) {
+        const toDx = targetMate.x - releaseX;
+        const toDy = targetMate.y - releaseY;
+        const targetDist = Math.hypot(toDx, toDy);
+        const passAngle = Math.atan2(toDy, toDx);
+
+        // Calibrate speed so the ball arrives gently right at their feet/chest without overshooting
+        const secureSpeed = Math.max(3.8, Math.min(8.5, targetDist / 13.0 + 1.2));
+
+        engine.ball.x = releaseX;
+        engine.ball.y = releaseY;
+        engine.ball.prevX = releaseX;
+        engine.ball.prevY = releaseY;
+        engine.ball.prevZ = 12;
+        engine.ball.z = 12;
+        engine.ball.vx = Math.cos(passAngle) * secureSpeed;
+        engine.ball.vy = Math.sin(passAngle) * secureSpeed;
+        // Soft downward trajectory so it touches turf at their feet cleanly
+        engine.ball.vz = 0.22;
+        engine.ball.isAirborne = true;
+        audio.playKick(0.55);
+
+        engine.setBanner(`🤝 SECURE THROW-IN TO #${targetMate.number} ${targetMate.name.toUpperCase()}`, 85);
+
+        // Prepare receiver cleanly
+        targetMate.action = 'running';
+        targetMate.facingAngle = Math.atan2(releaseY - targetMate.y, releaseX - targetMate.x);
+        targetMate.vx = 0;
+        targetMate.vy = 0;
+
+        if (taker.team === 'home') {
+          engine.userControlledPlayerId = targetMate.id;
+          engine.updateUserControlledFlag();
+        }
+      } else {
+        const throwSpeed = 6.0;
+        engine.ball.x = releaseX;
+        engine.ball.y = releaseY;
+        engine.ball.prevX = releaseX;
+        engine.ball.prevY = releaseY;
+        engine.ball.prevZ = 12;
+        engine.ball.z = 12;
+        engine.ball.vx = Math.cos(aimAngle) * throwSpeed;
+        engine.ball.vy = Math.sin(aimAngle) * throwSpeed;
+        engine.ball.vz = 0.25;
+        engine.ball.isAirborne = true;
+        audio.playKick(0.55);
+      }
+
+      engine.setPieceDeliveryGraceTimer = 30;
+    }
   } else if (isCorner && action === 'shoot') {
     // 🌟 OLIMPICO CORNER ATTEMPT: Direct curving shot into the net!
     const olimpicoSpeed = 15.5 + mult * 7.5;
@@ -1093,8 +1267,8 @@ export function executeSetPieceDelivery(
     }
   }
 
-  // If passing to a teammate from set-piece, target them and switch control to recipient
-  if (action === 'pass' || action === 'long_pass' || isThrow) {
+  // If passing to a teammate from set-piece (corner/free kick/goal kick), target them and switch control to recipient
+  if (!isThrow && (action === 'pass' || action === 'long_pass')) {
     const mates = engine.players.filter(p => p.team === taker.team && p.id !== taker.id && p.role !== 'GK');
     let bestReceiver: Player | null = null;
     let bestScore = -Infinity;

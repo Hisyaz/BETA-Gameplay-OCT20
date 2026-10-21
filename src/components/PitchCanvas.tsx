@@ -226,8 +226,8 @@ export const PitchCanvas: React.FC<PitchCanvasProps> = ({
             drawStumbleIndicator(ctx, p);
           }
 
-          // Q BALL SHIELDING: Clear, visible tactical ground shield arc & overhead badge
-          if (p.isShielding || p.action === 'shielding') {
+          // Q BALL SHIELDING: Physical cleat plant effect only when actively holding possession
+          if ((p.isShielding || p.action === 'shielding') && engine.ball.ownerId === p.id) {
             drawShieldingVisuals(ctx, p);
           }
 
@@ -948,44 +948,7 @@ export const PitchCanvas: React.FC<PitchCanvasProps> = ({
     ctx.fill();
     ctx.restore();
 
-    // 2. Broadcast Arcade Header Badge
-    let promptTitle = '';
-    let promptSubtitle = '';
-    if (isPen) {
-      promptTitle = '⚡ PENALTY KICK';
-      promptSubtitle = '[AIM: ←/→] • [HOLD A: SHOOT ONLY]';
-    } else if (isThrow) {
-      promptTitle = '✋ TOUCHLINE THROW-IN';
-      promptSubtitle = '[AIM: ARROWS] • [S: SHORT] • [W: LONG]';
-    } else if (isCorner) {
-      promptTitle = '🚩 CORNER KICK';
-      promptSubtitle = '[AIM: ←/→] • [D: CROSS] • [S: PASS]';
-    } else {
-      promptTitle = '⚽ DIRECT FREE KICK [DEAD-BALL]';
-      promptSubtitle = '[AIM: ←/→] • [A: SHOOT] • [D: CROSS] • [S: PASS]';
-    }
-
-    const badgeW = 260;
-    const badgeH = 25;
-    const bx = sx - badgeW / 2;
-    const by = sy - 44;
-
-    ctx.fillStyle = 'rgba(7, 19, 30, 0.92)';
-    ctx.fillRect(bx, by, badgeW, badgeH);
-    ctx.strokeStyle = isPen ? '#f43f5e' : '#f59e0b';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(bx, by, badgeW, badgeH);
-
-    ctx.fillStyle = isPen ? '#fb7185' : '#facc15';
-    ctx.font = '7px "Press Start 2P", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(promptTitle, sx, by + 4);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '5.5px "Press Start 2P", monospace';
-    ctx.fillText(promptSubtitle, sx, by + 15);
-
+    // Sleek aim direction and crosshair drawn without any text box on top of the player
     ctx.restore();
   };
 

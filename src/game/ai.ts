@@ -93,6 +93,14 @@ export function updatePlayerAI(
 ): AiActionOutput | null {
   const tactics = detailedTactics || getDefaultTactics(playstyle);
 
+  // If player does not have the ball, they CANNOT use the shield under any circumstances
+  if (ball.ownerId !== player.id) {
+    player.isShielding = false;
+    if (player.action === 'shielding') {
+      player.action = 'idle';
+    }
+  }
+
   // If player is signaling for pass, decay the signal timer
   if (player.signalPassTimer && player.signalPassTimer > 0) {
     player.signalPassTimer -= timeScale;
@@ -144,7 +152,7 @@ export function updatePlayerAI(
 
   // 2. BALL CARRIER DECISION MAKING (If AI has the ball)
   if (isOwner) {
-    return updateBallCarrierAI(
+    const carrierAction = updateBallCarrierAI(
       player,
       allPlayers,
       ball,
@@ -157,6 +165,10 @@ export function updatePlayerAI(
       tactics,
       isKickoffActive
     );
+    if (carrierAction) {
+      player.isShielding = false;
+    }
+    return carrierAction;
   }
 
   // 3. OUT-OF-POSSESSION & OFF-THE-BALL POSITIONING
@@ -228,6 +240,13 @@ function updateGoalkeeperAI(
   tactics?: DetailedTactics,
   difficulty: DifficultyLevel = 'easy'
 ): AiActionOutput | null {
+  if (ball.ownerId !== player.id) {
+    player.isShielding = false;
+    if (player.action === 'shielding') {
+      player.action = 'idle';
+    }
+  }
+
   const goalLineY = isAttackingUp ? PITCH_CONFIG.PITCH_BOTTOM - 20 : PITCH_CONFIG.PITCH_TOP + 20;
   const goalLeft = PITCH_CONFIG.CENTER_X - PITCH_CONFIG.GOAL_WIDTH / 2;
   const goalRight = PITCH_CONFIG.CENTER_X + PITCH_CONFIG.GOAL_WIDTH / 2;
@@ -756,8 +775,9 @@ function updateBallCarrierAI(
   const isSkillfulPlayer = (player.stats.dribbling || 70) >= 74 || playstyle === 'jogobonito' || playstyle === 'futbol_champan';
 
   // 4.3.3 Protecting a lead: shield the ball at touchlines / under heavy contact
+  // STRICT REQUIREMENT: Only players with possession of the ball can shield!
   const isProtectingLead = scoreDiff > 0 && matchTimeMinutes > 70;
-  if (nearestOppDistSq < 34 * 34 && pressingOpp && (isFacingAwayFromGoal || isProtectingLead || tactics?.shape === 'strict')) {
+  if (ball.ownerId === player.id && nearestOppDistSq < 34 * 34 && pressingOpp && (isFacingAwayFromGoal || isProtectingLead || tactics?.shape === 'strict')) {
     if (Math.random() < 0.44 && !player.isShielding) {
       player.isShielding = true;
       player.action = 'shielding';
@@ -765,8 +785,11 @@ function updateBallCarrierAI(
       audio.playShoulderHit();
       return null;
     }
-  } else if (player.isShielding && nearestOppDistSq > 55 * 55) {
+  } else if (player.isShielding && (ball.ownerId !== player.id || nearestOppDistSq > 55 * 55)) {
     player.isShielding = false;
+    if (player.action === 'shielding') {
+      player.action = 'idle';
+    }
   }
 
   // Skill Move (Step-overs / feints):
@@ -1081,6 +1104,12 @@ function updateOffTheBallAI(
   playerIndex: number = 0,
   frame: number = 0
 ): AiActionOutput | null {
+  // Players without the ball cannot use the shield under any circumstances
+  player.isShielding = false;
+  if (player.action === 'shielding') {
+    player.action = 'idle';
+  }
+
   const distSqToBall = distSq(ball.x, ball.y, player.x, player.y);
   const ballCarrier = allPlayers.find(p => p.id === ball.ownerId);
   const isCarrierGK = ballCarrier && ballCarrier.role === 'GK';
